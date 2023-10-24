@@ -85,7 +85,12 @@ class Order:
         Returns a DataFrame with:
         order_id, number_of_products
         """
-        pass  # YOUR CODE HERE
+        items = self.data['order_items'].copy()
+        
+        # Create the new df
+        number_products = items.loc[:, ["order_id", "order_item_id"]].groupby(by = "order_id").count().reset_index()       
+        
+        return number_products
 
     def get_number_sellers(self):
         """
