@@ -97,7 +97,12 @@ class Order:
         Returns a DataFrame with:
         order_id, number_of_sellers
         """
-        pass  # YOUR CODE HERE
+        items = self.data['order_items'].copy()
+        
+        # Create the new df
+        number_sellers = items.loc[:, ["order_id", "seller_id"]].groupby(by = "order_id").count().reset_index()
+        
+        return number_sellers
 
     def get_price_and_freight(self):
         """
