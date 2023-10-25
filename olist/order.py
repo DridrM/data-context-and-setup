@@ -26,10 +26,6 @@ class Order:
             # If true replace the order df by a filtered version of the df by order status = delivered
             orders = orders.loc[orders.loc[:, 'order_status'] == 'delivered', :]
         
-        else:
-            # Else don't modify the df
-            pass
-        
         # Date time columns names
         columns = orders.columns[3:]
 
@@ -41,11 +37,11 @@ class Order:
         orders_wait_time = pd.DataFrame(columns = ["order_id", "wait_time", "expected_wait_time", "delay_vs_expected", "order_status"])
         
         # Create the columns wait times
-        orders_wait_time.loc[:, 'wait_time'] = orders.loc[:, 'order_delivered_customer_date'] - orders.loc[:, 'order_purchase_timestamp']
-        orders_wait_time.loc[:, 'expected_wait_time'] = orders.loc[:, 'order_estimated_delivery_date'] - orders.loc[:, 'order_purchase_timestamp']
+        orders_wait_time.loc[:, 'wait_time'] = (orders.loc[:, 'order_purchase_timestamp'] - orders.loc[:, 'order_delivered_customer_date']) / np.timedelta64(24, 'h')
+        orders_wait_time.loc[:, 'expected_wait_time'] = (orders.loc[:, 'order_purchase_timestamp'] - orders.loc[:, 'order_estimated_delivery_date']) / np.timedelta64(24, 'h')
 
         # Fill the column delay vs expected
-        delay_vs_expected = orders_wait_time.loc[:, 'expected_wait_time'].dt.days - orders_wait_time.loc[:, 'wait_time'].dt.days
+        delay_vs_expected = (orders.loc[:, 'order_delivered_customer_date'] - orders.loc[:, 'order_estimated_delivery_date']) / np.timedelta64(24, 'h')
         orders_wait_time.loc[:, "delay_vs_expected"] = delay_vs_expected.apply(lambda x: x if x >= 0 else 0)
 
         # Fill the column order status
@@ -126,7 +122,69 @@ class Order:
         Returns a DataFrame with:
         order_id, distance_seller_customer
         """
-        pass  # YOUR CODE HERE
+        # import data
+        data = self.data
+        orders = data['orders']
+        order_items = data['order_items']
+        sellers = data['sellers']
+        customers = data['customers']
+
+        # Since one zip code can map to multiple (lat, lng), take the first one
+        geo = data['geolocation']
+        geo = geo.groupby('geolocation_zip_code_prefix',
+                          as_index=False).first()
+
+        # Merge geo_location for sellers
+        sellers_mask_columns = [
+            'seller_id', 'seller_zip_code_prefix', 'geolocation_lat', 'geolocation_lng'
+        ]
+
+        sellers_geo = sellers.merge(
+            geo,
+            how='left',
+            left_on='seller_zip_code_prefix',
+            right_on='geolocation_zip_code_prefix')[sellers_mask_columns]
+
+        # Merge geo_location for customers
+        customers_mask_columns = ['customer_id', 'customer_zip_code_prefix', 'geolocation_lat', 'geolocation_lng']
+
+        customers_geo = customers.merge(
+            geo,
+            how='left',
+            left_on='customer_zip_code_prefix',
+            right_on='geolocation_zip_code_prefix')[customers_mask_columns]
+
+        # Match customers with sellers in one table
+        customers_sellers = customers.merge(orders, on='customer_id')\
+            .merge(order_items, on='order_id')\
+            .merge(sellers, on='seller_id')\
+            [['order_id', 'customer_id','customer_zip_code_prefix', 'seller_id', 'seller_zip_code_prefix']]
+        
+        # Add the geoloc
+        matching_geo = customers_sellers.merge(sellers_geo,
+                                            on='seller_id')\
+            .merge(customers_geo,
+                   on='customer_id',
+                   suffixes=('_seller',
+                             '_customer'))
+        # Remove na()
+        matching_geo = matching_geo.dropna()
+
+        matching_geo.loc[:, 'distance_seller_customer'] =\
+            matching_geo.apply(lambda row:
+                               haversine_distance(row['geolocation_lng_seller'],
+                                                  row['geolocation_lat_seller'],
+                                                  row['geolocation_lng_customer'],
+                                                  row['geolocation_lat_customer']),
+                               axis=1)
+        # Since an order can have multiple sellers,
+        # return the average of the distance per order
+        order_distance =\
+            matching_geo.groupby('order_id',
+                                 as_index=False).agg({'distance_seller_customer':
+                                                      'mean'})
+
+        return order_distance
 
     def get_training_data(self,
                           is_delivered = True,
@@ -144,4 +202,5 @@ class Order:
             .merge(self.get_review_score(), on = 'order_id')\
                 .merge(self.get_number_products(), on = 'order_id')\
                     .merge(self.get_number_sellers(), on = 'order_id')\
-                        .merge(self.get_price_and_freight(), on = 'order_id').dropna(axis = 0)
+                        .merge(self.get_price_and_freight(), on = 'order_id')\
+                            .merge(self.get_distance_seller_customer(), on = 'order_id').dropna(axis = 0)

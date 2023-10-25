@@ -136,13 +136,25 @@ class Seller:
             .sum()\
             .rename(columns={'price': 'sales'})
 
-    def get_review_score(self):
+    def get_review_score(self) -> pd.DataFrame:
         """
         Returns a DataFrame with:
         'seller_id', 'share_of_five_stars', 'share_of_one_stars', 'review_score'
         """
-
-        pass  # YOUR CODE HERE
+        # Import the review score df from order
+        review_score = self.order.get_review_score()
+        
+        # Import order items
+        items = self.data['order_items'].copy()
+        
+        # Merge
+        seller_review_score = review_score.merge(items, on = 'order_id')
+        
+        # Compute share of one star, share of five star, mean review score per seller id
+        return seller_review_score.\
+            loc[:, seller_review_score.columns.isin(['seller_id', 'dim_is_five_star', 'dim_is_one_star', 'review_score'])]\
+                .groupby(by = 'seller_id').agg('mean').reset_index()\
+                    .rename(columns = {'dim_is_five_star': 'share_of_five_stars', 'dim_is_one_star': 'share_of_one_stars'})
 
     def get_training_data(self):
         """
