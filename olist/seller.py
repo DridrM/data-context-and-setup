@@ -141,8 +141,14 @@ class Seller:
         Returns a DataFrame with:
         'seller_id', 'share_of_five_stars', 'share_of_one_stars', 'review_score'
         """
+        # Set the review score cost dict
+        review_score_cost = {1: 100, 2: 50, 3: 40, 4: 0, 5: 0}
+        
         # Import the review score df from order
         review_score = self.order.get_review_score()
+        
+        # Create a new column cost of each review score
+        review_score['cost_of_reviews'] = review_score['review_score'].apply(lambda x: review_score_cost[x])
         
         # Import order items
         items = self.data['order_items'].copy()
@@ -152,8 +158,10 @@ class Seller:
         
         # Compute share of one star, share of five star, mean review score per seller id
         return seller_review_score.\
-            loc[:, seller_review_score.columns.isin(['seller_id', 'dim_is_five_star', 'dim_is_one_star', 'review_score'])]\
-                .groupby(by = 'seller_id').agg('mean').reset_index()\
+            loc[:, seller_review_score.columns.isin(['seller_id', 'dim_is_five_star', 'dim_is_one_star', 'review_score', 'cost_of_reviews'])]\
+                .groupby(by = 'seller_id')\
+                    .agg({'dim_is_five_star': 'mean', 'dim_is_one_star': 'mean', 'review_score': 'mean', 'cost_of_reviews': 'sum'})\
+                    .reset_index()\
                     .rename(columns = {'dim_is_five_star': 'share_of_five_stars', 'dim_is_one_star': 'share_of_one_stars'})
 
     def get_training_data(self):
@@ -180,5 +188,17 @@ class Seller:
         if self.get_review_score() is not None:
             training_set = training_set.merge(self.get_review_score(),
                                               on='seller_id')
+        
+        # Adding the column comission
+        training_set['commission'] = 0.10 * training_set['sales']
+        
+        # Adding the column fees
+        training_set['fees'] = 80 * training_set['months_on_olist']
+        
+        # Adding the column revenues
+        training_set['revenues'] = training_set['commission'] + training_set['fees']
+        
+        # Adding the column profits
+        training_set['profits'] =  training_set['revenues'] - training_set['cost_of_reviews']
 
         return training_set
