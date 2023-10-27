@@ -1,4 +1,6 @@
 from math import radians, sin, cos, asin, sqrt
+import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -42,3 +44,38 @@ def plot_kde_plot(df, variable, dimension):
                       hue=dimension,
                       col=dimension)
     g.map(sns.kdeplot, variable)
+
+
+def it_costs(n_sellers: float, n_products: float, alpha = 3157.27, beta = 978.23) -> float:
+    """Compute the it costs of Olist"""
+    return round(alpha * np.sqrt(n_sellers) + beta * np.sqrt(n_products))
+
+
+def optimal_nb_sellers(seller_df: pd.DataFrame, 
+                     criterias: list,
+                     total_seller_remove: int, 
+                     yield_ = False) -> dict:
+    """Compute the margin or the yield vs the number of sellers removed classified by a list of criterias"""
+    
+    # Sort the sellers by the criterias
+    df = seller_df.sort_values(by = criterias, ascending = True).reset_index().copy()
+    # Set the output dict
+    margin_dict = {}
+    # Ceil the maximum number of sellers to remove as the maximum number of sellers
+    max_remove = min(total_seller_remove, df.shape[0])
+    
+    # Iterate over the number of sellers to remove
+    for n in range(max_remove):
+        
+        # If yield argument is choosen, compute the yield
+        if yield_:
+            margin_dict[n] =  1 - it_costs(df.shape[0], df.quantity.sum()) / df.profits.sum()
+        
+        # Else compute the margin
+        else:
+            margin_dict[n] =  df.profits.sum() - it_costs(df.shape[0], df.quantity.sum())
+        
+        # Drop the worst seller of the iteration given the criterias
+        df = df.drop(labels = n, axis = 0)
+    
+    return margin_dict
