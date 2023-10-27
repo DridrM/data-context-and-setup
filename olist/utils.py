@@ -56,7 +56,7 @@ def optimal_nb_sellers(seller_df: pd.DataFrame,
                      total_seller_remove: int, 
                      base_revenue_col = 'profits',
                      base_nb_prod_col = 'quantity',
-                     yield_ = False) -> dict:
+                     calculus_type = 'margin') -> dict:
     """Compute the margin or the yield vs the number of sellers removed classified by a list of criterias"""
     
     # Sort the sellers by the criterias
@@ -70,12 +70,15 @@ def optimal_nb_sellers(seller_df: pd.DataFrame,
     for n in range(max_remove):
         
         # If yield argument is choosen, compute the yield
-        if yield_:
+        if calculus_type == 'yield':
             margin_dict[n] =  1 - it_costs(df.shape[0], df[base_nb_prod_col].sum()) / df[base_revenue_col].sum()
         
         # Else compute the margin
-        else:
+        elif calculus_type == 'margin':
             margin_dict[n] =  df[base_revenue_col].sum() - it_costs(df.shape[0], df[base_nb_prod_col].sum())
+        
+        else:
+            margin_dict[n] =  it_costs(df.shape[0], df[base_nb_prod_col].sum())         
         
         # Drop the worst seller of the iteration given the criterias
         df = df.drop(labels = n, axis = 0)
