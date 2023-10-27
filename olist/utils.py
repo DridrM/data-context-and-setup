@@ -54,6 +54,7 @@ def it_costs(n_sellers: float, n_products: float, alpha = 3157.27, beta = 978.23
 def optimal_nb_sellers(seller_df: pd.DataFrame, 
                      criterias: list,
                      total_seller_remove: int, 
+                     base_revenue_col = 'profits',
                      yield_ = False) -> dict:
     """Compute the margin or the yield vs the number of sellers removed classified by a list of criterias"""
     
@@ -73,7 +74,7 @@ def optimal_nb_sellers(seller_df: pd.DataFrame,
         
         # Else compute the margin
         else:
-            margin_dict[n] =  df.profits.sum() - it_costs(df.shape[0], df.quantity.sum())
+            margin_dict[n] =  df[base_revenue_col].sum() - it_costs(df.shape[0], df.quantity.sum())
         
         # Drop the worst seller of the iteration given the criterias
         df = df.drop(labels = n, axis = 0)
